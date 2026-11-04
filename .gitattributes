@@ -1,2 +1,21 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Dependencies
+**/node_modules/
+
+# Environment variables and secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+
+# Build output
+**/dist/
+**/coverage/
+
+# Operating system files
+.DS_Store
+Thumbs.db

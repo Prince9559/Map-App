@@ -175,7 +175,7 @@ const forgotPassword = async (req, res) => {
 
         try {
             await transporter.sendMail({
-                from: `"Map-App" <${process.env.EMAIL_USER}>`,
+                from: process.env.EMAIL_FROM,
                 to: user.email,
                 subject: "Map-App - Password Reset OTP",
                 text: `Your Map-App password reset OTP is ${otp}. It is valid for 5 minutes. Do not share this OTP with anyone.`,

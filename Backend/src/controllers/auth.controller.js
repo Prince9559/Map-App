@@ -1,7 +1,8 @@
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 const crypto = require("crypto");
-const transporter = require("../config/email");
+// const transporter = require("../config/email");
+const gmail = require("../config/email");
 const generateOtp = require("../utils/generateOtp");
 
 const signup = async (req, res) => {
@@ -123,6 +124,7 @@ const login = async (req, res) => {
 };
 
 // FORGOT PASSWORD - SEND OTP
+
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -174,20 +176,33 @@ const forgotPassword = async (req, res) => {
         await user.save();
 
         try {
-            await transporter.sendMail({
-                from: process.env.EMAIL_FROM,
-                to: user.email,
-                subject: "Map-App - Password Reset OTP",
-                text: `Your Map-App password reset OTP is ${otp}. It is valid for 5 minutes. Do not share this OTP with anyone.`,
-                html: `
-                    <div style="font-family:Arial,sans-serif;padding:25px;">
-                        <h2>Map-App Password Reset</h2>
-                        <p>Your password reset OTP is:</p>
-                        <h1 style="letter-spacing:8px;">${otp}</h1>
-                        <p>This OTP expires in 5 minutes.</p>
-                        <p>Do not share this OTP with anyone.</p>
-                    </div>
-                `
+            const emailMessage = [
+                `From: Map-App <${process.env.EMAIL_USER}>`,
+                `To: ${user.email}`,
+                "Subject: Map-App - Password Reset OTP",
+                "MIME-Version: 1.0",
+                'Content-Type: text/html; charset="UTF-8"',
+                "",
+                `<div style="font-family:Arial,sans-serif;padding:25px;">
+                    <h2>Map-App Password Reset</h2>
+                    <p>Your password reset OTP is:</p>
+                    <h1 style="letter-spacing:8px;">${otp}</h1>
+                    <p>This OTP expires in 5 minutes.</p>
+                    <p>Do not share this OTP with anyone.</p>
+                </div>`
+            ].join("\r\n");
+
+            const encodedMessage = Buffer.from(emailMessage)
+                .toString("base64")
+                .replace(/\+/g, "-")
+                .replace(/\//g, "_")
+                .replace(/=+$/, "");
+
+            await gmail.users.messages.send({
+                userId: "me",
+                requestBody: {
+                    raw: encodedMessage
+                }
             });
 
         } catch (emailError) {
@@ -212,6 +227,7 @@ const forgotPassword = async (req, res) => {
         });
     }
 };
+
 
 
 // VERIFY PASSWORD RESET OTP

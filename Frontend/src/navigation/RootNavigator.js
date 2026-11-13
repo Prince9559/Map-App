@@ -1,4 +1,3 @@
-
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -11,6 +10,7 @@ import SignupScreen from "../screens/SignupScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 
 import MainTabNavigator from "./MainTabNavigator";
+import PlaceDetailsScreen from "../screens/PlaceDetailsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -25,10 +25,17 @@ export default function RootNavigator() {
         <NavigationContainer>
             <Stack.Navigator screenOptions={{ headerShown: false }}>
                 {isAuthenticated ? (
-                    <Stack.Screen
-                        name="MainTabs"
-                        component={MainTabNavigator}
-                    />
+                    <>
+                        <Stack.Screen
+                            name="MainTabs"
+                            component={MainTabNavigator}
+                        />
+
+                        <Stack.Screen
+                            name="PlaceDetails"
+                            component={PlaceDetailsScreen}
+                        />
+                    </>
                 ) : (
                     <>
                         <Stack.Screen

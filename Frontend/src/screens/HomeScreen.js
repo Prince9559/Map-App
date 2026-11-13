@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 
 import {
@@ -15,17 +14,19 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import { getNearbyPlaces } from "../services/places.service";
 
 export default function HomeScreen({ navigation }) {
     const [location, setLocation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState("");
+    const [nearbyPlaces, setNearbyPlaces] = useState([]);
 
     useEffect(() => {
         getCurrentLocation();
     }, []);
 
-    // Get user's current location
+    // Get user's current location and nearby places
     const getCurrentLocation = async () => {
         try {
             setLoading(true);
@@ -46,18 +47,47 @@ export default function HomeScreen({ navigation }) {
                     accuracy: Location.Accuracy.Balanced,
                 });
 
+            const latitude = currentLocation.coords.latitude;
+            const longitude = currentLocation.coords.longitude;
+
             setLocation({
-                latitude: currentLocation.coords.latitude,
-                longitude: currentLocation.coords.longitude,
+                latitude,
+                longitude,
                 latitudeDelta: 0.015,
                 longitudeDelta: 0.015,
             });
+
+            // Fetch nearby places from backend
+            try {
+                const places = await getNearbyPlaces({
+                    latitude,
+                    longitude,
+                    radius: 1500,
+                });
+
+                setNearbyPlaces(
+                    Array.isArray(places) ? places : []
+                );
+
+                console.log("Nearby Places:", places);
+
+            } catch (error) {
+                console.log(
+                    "Nearby Places Error:",
+                    error.response?.data?.message || error.message
+                );
+
+                setNearbyPlaces([]);
+            }
+
         } catch (error) {
             console.log("Location Error:", error);
+
             Alert.alert(
                 "Location Error",
                 "Unable to get your current location."
             );
+
         } finally {
             setLoading(false);
         }
@@ -108,8 +138,13 @@ export default function HomeScreen({ navigation }) {
             {/* Top Header */}
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.greeting}>Explore the world</Text>
-                    <Text style={styles.heading}>Where to go today?</Text>
+                    <Text style={styles.greeting}>
+                        Explore the world
+                    </Text>
+
+                    <Text style={styles.heading}>
+                        Where to go today?
+                    </Text>
                 </View>
 
                 <TouchableOpacity
@@ -130,7 +165,11 @@ export default function HomeScreen({ navigation }) {
                 style={styles.searchContainer}
                 onPress={() => navigation.navigate("Search")}
             >
-                <Ionicons name="search" size={22} color="#2563EB" />
+                <Ionicons
+                    name="search"
+                    size={22}
+                    color="#2563EB"
+                />
 
                 <TextInput
                     style={styles.searchInput}
@@ -146,7 +185,11 @@ export default function HomeScreen({ navigation }) {
                     style={styles.searchButton}
                     onPress={handleSearch}
                 >
-                    <Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
+                    <Ionicons
+                        name="arrow-forward"
+                        size={19}
+                        color="#FFFFFF"
+                    />
                 </TouchableOpacity>
             </TouchableOpacity>
 
@@ -154,7 +197,11 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.mapContainer}>
                 {loading && !location ? (
                     <View style={styles.mapLoading}>
-                        <ActivityIndicator size="large" color="#2563EB" />
+                        <ActivityIndicator
+                            size="large"
+                            color="#2563EB"
+                        />
+
                         <Text style={styles.loadingText}>
                             Finding your location...
                         </Text>
@@ -168,7 +215,9 @@ export default function HomeScreen({ navigation }) {
                         showsCompass={true}
                         toolbarEnabled={false}
                     >
+                        {/* User's Current Location */}
                         <Marker
+                            key="user-location-marker"
                             coordinate={{
                                 latitude: location.latitude,
                                 longitude: location.longitude,
@@ -176,6 +225,39 @@ export default function HomeScreen({ navigation }) {
                             title="Your Location"
                             description="You are here"
                         />
+
+                        {/* Nearby Places Markers */}
+                        {nearbyPlaces.map((place, index) => {
+                            if (
+                                typeof place.latitude !== "number" ||
+                                typeof place.longitude !== "number"
+                            ) {
+                                return null;
+                            }
+
+                            return (
+                                <Marker
+                                    key={
+                                        place.placeId ||
+                                        `nearby-place-${index}`
+                                    }
+                                    coordinate={{
+                                        latitude: place.latitude,
+                                        longitude: place.longitude,
+                                    }}
+                                    title={place.name}
+                                    description={place.address}
+                                    onPress={() =>
+                                        navigation.navigate(
+                                            "PlaceDetails",
+                                            {
+                                                placeId: place.placeId,
+                                            }
+                                        )
+                                    }
+                                />
+                            );
+                        })}
                     </MapView>
                 ) : (
                     <View style={styles.mapLoading}>
@@ -193,7 +275,9 @@ export default function HomeScreen({ navigation }) {
                             style={styles.retryButton}
                             onPress={getCurrentLocation}
                         >
-                            <Text style={styles.retryText}>Try Again</Text>
+                            <Text style={styles.retryText}>
+                                Try Again
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -205,7 +289,10 @@ export default function HomeScreen({ navigation }) {
                         size={19}
                         color="#2563EB"
                     />
-                    <Text style={styles.mapLabelText}>Your Location</Text>
+
+                    <Text style={styles.mapLabelText}>
+                        Your Location
+                    </Text>
                 </View>
 
                 {/* My Location Button */}
@@ -224,7 +311,10 @@ export default function HomeScreen({ navigation }) {
             {/* Explore Section */}
             <View style={styles.exploreHeader}>
                 <View>
-                    <Text style={styles.sectionTitle}>Explore Nearby</Text>
+                    <Text style={styles.sectionTitle}>
+                        Explore Nearby
+                    </Text>
+
                     <Text style={styles.sectionSubtitle}>
                         Discover places around you
                     </Text>
@@ -233,15 +323,17 @@ export default function HomeScreen({ navigation }) {
                 <TouchableOpacity
                     onPress={() => navigation.navigate("Search")}
                 >
-                    <Text style={styles.seeAll}>See all</Text>
+                    <Text style={styles.seeAll}>
+                        See all
+                    </Text>
                 </TouchableOpacity>
             </View>
 
             {/* Quick Categories */}
             <View style={styles.categories}>
-                {quickActions.map((item, index) => (
+                {quickActions.map((item) => (
                     <TouchableOpacity
-                        key={index}
+                        key={item.title}
                         style={styles.categoryItem}
                         onPress={() =>
                             navigation.navigate("Search", {
@@ -269,7 +361,7 @@ export default function HomeScreen({ navigation }) {
                 ))}
             </View>
 
-            {/* Bottom Navigation Hint */}
+            {/* Saved Places Banner */}
             <TouchableOpacity
                 style={styles.savedBanner}
                 onPress={() => navigation.navigate("Saved")}
@@ -283,7 +375,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
 
                 <View style={styles.savedContent}>
-                    <Text style={styles.savedTitle}>Your saved places</Text>
+                    <Text style={styles.savedTitle}>
+                        Your saved places
+                    </Text>
+
                     <Text style={styles.savedSubtitle}>
                         Access your favorite destinations
                     </Text>

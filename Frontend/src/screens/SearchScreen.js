@@ -9,34 +9,208 @@ import {
     StyleSheet,
     ScrollView,
     StatusBar,
+    ActivityIndicator,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+
+import {
+    searchLocations,
+    getNearbyPlaces,
+} from "../services/places.service";
 
 export default function SearchScreen({ navigation, route }) {
     const [searchText, setSearchText] = useState(
         route?.params?.searchText || ""
     );
 
+    const [places, setPlaces] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [hasSearched, setHasSearched] = useState(false);
+
     const categories = [
-        { title: "Restaurants", icon: "restaurant-outline", color: "#FFF0E6" },
-        { title: "Hotels", icon: "bed-outline", color: "#EDE9FE" },
-        { title: "Hospitals", icon: "medkit-outline", color: "#FCE7F3" },
-        { title: "Shopping", icon: "cart-outline", color: "#DBEAFE" },
-        { title: "ATMs", icon: "cash-outline", color: "#DCFCE7" },
-        { title: "Gas Stations", icon: "car-outline", color: "#FEF3C7" },
+        {
+            title: "Restaurants",
+            type: "restaurant",
+            icon: "restaurant-outline",
+            color: "#FFF0E6",
+        },
+        {
+            title: "Hotels",
+            type: "hotel",
+            icon: "bed-outline",
+            color: "#EDE9FE",
+        },
+        {
+            title: "Hospitals",
+            type: "hospital",
+            icon: "medkit-outline",
+            color: "#FCE7F3",
+        },
+        {
+            title: "Shopping",
+            type: "shopping_mall",
+            icon: "cart-outline",
+            color: "#DBEAFE",
+        },
+        {
+            title: "ATMs",
+            type: "atm",
+            icon: "cash-outline",
+            color: "#DCFCE7",
+        },
+        {
+            title: "Gas Stations",
+            type: "gas_station",
+            icon: "car-outline",
+            color: "#FEF3C7",
+        },
+        {
+            title: "Cafes",
+            type: "cafe",
+            icon: "cafe-outline",
+            color: "#FCE7F3",
+        },
+        {
+            title: "Pharmacies",
+            type: "pharmacy",
+            icon: "medkit-outline",
+            color: "#DCFCE7",
+        },
+        {
+            title: "Police Stations",
+            type: "police",
+            icon: "shield-checkmark-outline",
+            color: "#DBEAFE",
+        },
     ];
 
-    const handleSearch = () => {
-        if (!searchText.trim()) {
+    // Normal text search for a specific place name
+    const handleSearch = async (query = searchText) => {
+        const trimmedQuery = query.trim();
+
+        if (!trimmedQuery) {
+            setError("Please enter a place name or category.");
             return;
         }
 
-        // Actual Places API integration will be added next.
+        setSearchText(trimmedQuery);
+        setLoading(true);
+        setError("");
+        setPlaces([]);
+        setHasSearched(true);
+
+        try {
+            const results = await searchLocations(trimmedQuery);
+            setPlaces(results);
+        } catch (err) {
+            console.log(
+                "Search Error:",
+                err.response?.data || err.message
+            );
+
+            setError(
+                err.response?.data?.message ||
+                err.message ||
+                "Unable to search places. Please try again."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Nearby category search using current GPS location
+    const handleCategorySearch = async (category) => {
+        setSearchText(category.title);
+        setLoading(true);
+        setError("");
+        setPlaces([]);
+        setHasSearched(true);
+
+        try {
+            // Request location permission
+            const permission =
+                await Location.requestForegroundPermissionsAsync();
+
+            if (permission.status !== "granted") {
+                throw new Error(
+                    "Location permission denied. Please allow location access to find nearby places."
+                );
+            }
+
+            // Get current GPS location
+            const currentLocation =
+                await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+
+            const latitude = currentLocation.coords.latitude;
+            const longitude = currentLocation.coords.longitude;
+
+            console.log("Current Location:", {
+                latitude,
+                longitude,
+            });
+
+            // Fetch nearby places within 1500 meters
+            const results = await getNearbyPlaces({
+                latitude,
+                longitude,
+                radius: 1500,
+                type: category.type,
+            });
+
+            console.log(
+                "Nearby Category:",
+                category.title,
+                "Results:",
+                results
+            );
+
+            setPlaces(Array.isArray(results) ? results : []);
+
+        } catch (err) {
+            console.log(
+                "Nearby Search Error:",
+                err.response?.data || err.message
+            );
+
+            setError(
+                err.response?.data?.message ||
+                err.message ||
+                "Unable to find nearby places. Please try again."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const openPlaceDetails = (place) => {
+        if (!place?.placeId) {
+            return;
+        }
+
         navigation.navigate("PlaceDetails", {
-            searchText: searchText.trim(),
+            placeId: place.placeId,
         });
     };
+
+    const clearSearch = () => {
+        setSearchText("");
+        setPlaces([]);
+        setError("");
+        setHasSearched(false);
+    };
+
+    const popularSearches = [
+        { label: "Restaurants", type: "restaurant" },
+        { label: "Hotels", type: "hotel" },
+        { label: "Hospitals", type: "hospital" },
+        { label: "Coffee shops", type: "cafe" },
+        { label: "ATMs", type: "atm" },
+    ];
 
     return (
         <View style={styles.container}>
@@ -46,13 +220,13 @@ export default function SearchScreen({ navigation, route }) {
                 <View>
                     <Text style={styles.heading}>Discover Places</Text>
                     <Text style={styles.subtitle}>
-                        Find places around the world
+                        Find restaurants, hotels and more
                     </Text>
                 </View>
 
                 <TouchableOpacity
                     style={styles.historyButton}
-                    onPress={() => setSearchText("")}
+                    onPress={clearSearch}
                 >
                     <Ionicons
                         name="refresh-outline"
@@ -67,16 +241,16 @@ export default function SearchScreen({ navigation, route }) {
 
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search places, cities, addresses..."
+                    placeholder="Search restaurants, hotels, ATMs..."
                     placeholderTextColor="#94A3B8"
                     value={searchText}
                     onChangeText={setSearchText}
-                    onSubmitEditing={handleSearch}
+                    onSubmitEditing={() => handleSearch()}
                     returnKeyType="search"
                 />
 
                 {searchText.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchText("")}>
+                    <TouchableOpacity onPress={clearSearch}>
                         <Ionicons
                             name="close-circle"
                             size={20}
@@ -86,74 +260,200 @@ export default function SearchScreen({ navigation, route }) {
                 )}
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.sectionTitle}>Explore Categories</Text>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                {!hasSearched && (
+                    <>
+                        <Text style={styles.sectionTitle}>
+                            Explore Categories
+                        </Text>
 
-                <View style={styles.categoryGrid}>
-                    {categories.map((item, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={styles.categoryCard}
-                            onPress={() => {
-                                setSearchText(item.title);
-                            }}
-                        >
-                            <View
-                                style={[
-                                    styles.categoryIcon,
-                                    { backgroundColor: item.color },
-                                ]}
-                            >
-                                <Ionicons
-                                    name={item.icon}
-                                    size={25}
-                                    color="#2563EB"
-                                />
-                            </View>
+                        <View style={styles.categoryGrid}>
+                            {categories.map((item) => (
+                                <TouchableOpacity
+                                    key={item.title}
+                                    style={styles.categoryCard}
+                                    onPress={() =>
+                                        handleCategorySearch(item)
+                                    }
+                                    disabled={loading}
+                                >
+                                    <View
+                                        style={[
+                                            styles.categoryIcon,
+                                            {
+                                                backgroundColor: item.color,
+                                            },
+                                        ]}
+                                    >
+                                        <Ionicons
+                                            name={item.icon}
+                                            size={25}
+                                            color="#2563EB"
+                                        />
+                                    </View>
 
-                            <Text style={styles.categoryTitle}>
-                                {item.title}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                <Text style={styles.sectionTitle}>Popular Searches</Text>
-
-                {[
-                    "Restaurants near me",
-                    "Hotels in Varanasi",
-                    "Hospitals near me",
-                    "Coffee shops",
-                ].map((item, index) => (
-                    <TouchableOpacity
-                        key={index}
-                        style={styles.popularItem}
-                        onPress={() => setSearchText(item)}
-                    >
-                        <View style={styles.popularIcon}>
-                            <Ionicons
-                                name="time-outline"
-                                size={19}
-                                color="#64748B"
-                            />
+                                    <Text style={styles.categoryTitle}>
+                                        {item.title}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
 
-                        <Text style={styles.popularText}>{item}</Text>
+                        <Text style={styles.sectionTitle}>
+                            Popular Searches
+                        </Text>
 
-                        <Ionicons
-                            name="arrow-up-outline"
-                            size={18}
-                            color="#94A3B8"
+                        {popularSearches.map((item) => (
+                            <TouchableOpacity
+                                key={item.label}
+                                style={styles.popularItem}
+                                onPress={() =>
+                                    handleCategorySearch(item)
+                                }
+                                disabled={loading}
+                            >
+                                <View style={styles.popularIcon}>
+                                    <Ionicons
+                                        name="time-outline"
+                                        size={19}
+                                        color="#64748B"
+                                    />
+                                </View>
+
+                                <Text style={styles.popularText}>
+                                    {item.label}
+                                </Text>
+
+                                <Ionicons
+                                    name="arrow-up-outline"
+                                    size={18}
+                                    color="#94A3B8"
+                                />
+                            </TouchableOpacity>
+                        ))}
+                    </>
+                )}
+
+                {loading && (
+                    <View style={styles.centerContainer}>
+                        <ActivityIndicator
+                            size="large"
+                            color="#2563EB"
                         />
-                    </TouchableOpacity>
-                ))}
+                        <Text style={styles.loadingText}>
+                            Finding nearby places...
+                        </Text>
+                    </View>
+                )}
+
+                {!!error && !loading && (
+                    <View style={styles.messageContainer}>
+                        <Ionicons
+                            name="alert-circle-outline"
+                            size={28}
+                            color="#DC2626"
+                        />
+                        <Text style={styles.errorText}>
+                            {error}
+                        </Text>
+                    </View>
+                )}
+
+                {hasSearched && !loading && !error && (
+                    <>
+                        <Text style={styles.sectionTitle}>
+                            Search Results ({places.length})
+                        </Text>
+
+                        {places.length === 0 ? (
+                            <View style={styles.messageContainer}>
+                                <Ionicons
+                                    name="location-outline"
+                                    size={32}
+                                    color="#94A3B8"
+                                />
+                                <Text style={styles.emptyTitle}>
+                                    No places found
+                                </Text>
+                                <Text style={styles.emptyText}>
+                                    Try another name or category.
+                                </Text>
+                            </View>
+                        ) : (
+                            places.map((place, index) => (
+                                <TouchableOpacity
+                                    key={
+                                        place.placeId ||
+                                        `place-${index}`
+                                    }
+                                    style={styles.resultCard}
+                                    onPress={() =>
+                                        openPlaceDetails(place)
+                                    }
+                                    disabled={!place.placeId}
+                                >
+                                    <View style={styles.resultIcon}>
+                                        <Ionicons
+                                            name="location"
+                                            size={23}
+                                            color="#2563EB"
+                                        />
+                                    </View>
+
+                                    <View style={styles.resultInfo}>
+                                        <Text style={styles.resultName}>
+                                            {place.name ||
+                                                "Unnamed Place"}
+                                        </Text>
+
+                                        <Text style={styles.resultAddress}>
+                                            {place.address ||
+                                                "Address unavailable"}
+                                        </Text>
+
+                                        {place.rating != null && (
+                                            <Text style={styles.ratingText}>
+                                                ★ {place.rating}
+                                                {place.totalReviews
+                                                    ? ` (${place.totalReviews} reviews)`
+                                                    : ""}
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    <Ionicons
+                                        name="chevron-forward"
+                                        size={21}
+                                        color="#94A3B8"
+                                    />
+                                </TouchableOpacity>
+                            ))
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={clearSearch}
+                        >
+                            <Text style={styles.backButtonText}>
+                                Explore More Categories
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                )}
 
                 <TouchableOpacity
                     style={styles.searchButton}
-                    onPress={handleSearch}
+                    onPress={() => handleSearch()}
+                    disabled={loading}
                 >
-                    <Ionicons name="search" size={19} color="#FFFFFF" />
+                    <Ionicons
+                        name="search"
+                        size={19}
+                        color="#FFFFFF"
+                    />
                     <Text style={styles.searchButtonText}>
                         Search Places
                     </Text>
@@ -261,6 +561,7 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: "700",
         color: "#334155",
+        textAlign: "center",
     },
 
     popularItem: {
@@ -305,5 +606,100 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 14,
         fontWeight: "700",
+    },
+
+    centerContainer: {
+        alignItems: "center",
+        paddingVertical: 35,
+    },
+
+    loadingText: {
+        marginTop: 12,
+        color: "#64748B",
+        fontSize: 13,
+    },
+
+    messageContainer: {
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        padding: 25,
+        borderRadius: 16,
+        marginBottom: 18,
+    },
+
+    errorText: {
+        color: "#DC2626",
+        fontSize: 13,
+        textAlign: "center",
+        marginTop: 10,
+    },
+
+    emptyTitle: {
+        color: "#0F172A",
+        fontSize: 16,
+        fontWeight: "700",
+        marginTop: 10,
+    },
+
+    emptyText: {
+        color: "#64748B",
+        fontSize: 13,
+        marginTop: 5,
+    },
+
+    resultCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 15,
+        padding: 13,
+        marginBottom: 10,
+        elevation: 2,
+    },
+
+    resultIcon: {
+        width: 43,
+        height: 43,
+        borderRadius: 13,
+        backgroundColor: "#DBEAFE",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    resultInfo: {
+        flex: 1,
+        marginLeft: 12,
+        marginRight: 8,
+    },
+
+    resultName: {
+        fontSize: 14,
+        fontWeight: "700",
+        color: "#0F172A",
+    },
+
+    resultAddress: {
+        fontSize: 11,
+        color: "#64748B",
+        marginTop: 5,
+    },
+
+    ratingText: {
+        fontSize: 11,
+        color: "#D97706",
+        marginTop: 5,
+        fontWeight: "600",
+    },
+
+    backButton: {
+        alignItems: "center",
+        padding: 14,
+        marginTop: 5,
+    },
+
+    backButtonText: {
+        color: "#2563EB",
+        fontWeight: "700",
+        fontSize: 13,
     },
 });
